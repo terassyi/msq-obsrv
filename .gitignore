@@ -1,0 +1,9 @@
+bpf/include/vmlinux.h
+
+**/*_bpfeb.o
+**/*_bpfel.o
+**/*_bpfeb.go
+**/*_bpfel.go
+
+msq-obsrv
+tc.o
