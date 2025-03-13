@@ -7,7 +7,7 @@ import (
 	"github.com/cilium/ebpf"
 )
 
-//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc clang MsqObsrvProg ../../bpf/tc.c -g -- -I../../bpf/include
+//go:generate go run github.com/cilium/ebpf/cmd/bpf2go -cc /usr/local/bin/clang MsqObsrvProg ../../bpf/tc.c -g -- -I../../bpf/include
 
 func Load() (*MsqObsrvProgObjects, error) {
 	obj := &MsqObsrvProgObjects{}

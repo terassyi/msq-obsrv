@@ -10,6 +10,6 @@ fi
 
 for i in $(seq 1 $1)
 do
-        ip netns exec ns$1 ab -n $2 -c $3 $KEEPALIVE http://10.1.0.2:80/  &
+        ip netns exec ns$1 ab -n $2 -c $3 $KEEPALIVE http://10.1.0.2:8000/ &
 done
 wait

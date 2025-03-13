@@ -32,28 +32,65 @@ struct tuple
 	__u32 protocol;
 };
 
-struct event
+struct tcp_stats
 {
-	struct tuple t;
-	__u32 dir;
-	__u32 magic;
+	__u8 syn_sent;
+	__u8 syn_recv;
+	__u8 fin_sent;
+	__u8 fin_recv;
+	__u8 rst_sent;
+	__u8 rst_recv;
+	__u16 ack_sent;
+};
+
+struct tcp_flag
+{
+	__u8 fin : 1; // 1
+	__u8 syn : 1; // 1 << 1
+	__u8 rst : 1; // 1 << 2
+	__u8 psh : 1; // 1 << 3
+	__u8 ack : 1; // 1 << 4
+	__u8 urg : 1; // 1 << 5
+	__u8 ece : 1; // 1 << 6
+	__u8 cwr : 1; // 1 << 7
+};
+
+union tcp_flag_v {
+	struct tcp_flag flag;
+	__u8 v;
 };
 
 struct
 {
 	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, __u32);
-	__type(value, struct tuple);
+	__type(key, struct tuple);
+	__type(value, struct tcp_stats);
 	__uint(max_entries, BPF_MAP_MAX_CAPACITY);
-} conntrack SEC(".maps");
+} flow_stats SEC(".maps");
 
 struct
 {
-	__uint(type, BPF_MAP_TYPE_LRU_HASH);
-	__type(key, struct tuple);
-	__type(value, __u32);
+	__uint(type, BPF_MAP_TYPE_RINGBUF);
 	__uint(max_entries, BPF_MAP_MAX_CAPACITY);
-} to_magic SEC(".maps");
+} inv_sip SEC(".maps");
+
+struct
+{
+	__uint(type, BPF_MAP_TYPE_HASH);
+	__type(key, struct inv_sip_event);
+	__type(value, u32);
+	__uint(max_entries, 1);
+} dummy_inv_sip SEC(".maps");
+
+struct inv_sip_event
+{
+	struct tuple t;
+	__u32 inv_sip;
+	// struct tcp_flag flag;
+	__u8 flag;
+	__u16 pad1;
+	__u8 pad2;
+};
 
 #ifndef BPF_FUNC_REMAP
 #define BPF_FUNC_REMAP(NAME, ...) \
@@ -68,6 +105,32 @@ BPF_FUNC_REMAP(csum_diff_external, const void *from, __u32 size_from,
 static __always_inline int ipv4_hdrlen(const struct iphdr *ip4)
 {
 	return ip4->ihl * 4;
+}
+
+// dir=true => sent
+// dir=false => recv
+static __always_inline void set_tcp_stats(struct tcp_flag flag, struct tcp_stats *stats, bool dir)
+{
+	if (dir)
+	{
+		if (flag.fin)
+			stats->fin_sent++;
+		else if (flag.syn)
+			stats->syn_sent++;
+		else if (flag.rst)
+			stats->rst_sent++;
+		else if (flag.ack)
+			stats->ack_sent++;
+	}
+	else
+	{
+		if (flag.fin)
+			stats->fin_recv++;
+		else if (flag.syn)
+			stats->syn_recv++;
+		else if (flag.rst)
+			stats->rst_recv++;
+	}
 }
 
 static __always_inline __wsum csum_add(__wsum csum, __wsum addend)

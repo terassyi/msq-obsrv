@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,8 +14,10 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
+	"github.com/cilium/ebpf/ringbuf"
 	"github.com/spf13/cobra"
 	"github.com/terassyi/msq-obsrv/pkg/bpf"
+	"github.com/terassyi/msq-obsrv/pkg/conntrack"
 	"github.com/terassyi/msq-obsrv/pkg/device"
 	"github.com/vishvananda/netlink"
 )
@@ -75,6 +79,12 @@ func run(ctx context.Context) error {
 
 	defer bpf.UnLoad()
 
+	invSipReader, err := ringbuf.NewReader(ebpfObject.InvSip)
+	if err != nil {
+		return err
+	}
+	defer invSipReader.Close()
+
 	downLinks, err := device.FindMatchedDevices(downstream)
 	if err != nil {
 		return err
@@ -124,6 +134,49 @@ func run(ctx context.Context) error {
 	if err := upstreamAddrVar.Set(n); err != nil {
 		return err
 	}
+
+	ct := conntrack.New(log)
+
+	go func() {
+		if err := ct.Run(ctx); err != nil {
+			log.ErrorContext(ctx, "failed to run conntrack", slog.Any("error", err))
+			cancel()
+		}
+	}()
+
+	go func() {
+		var evt bpf.MsqObsrvProgInvSipEvent
+		for {
+			record, err := invSipReader.Read()
+			if err != nil {
+				if errors.Is(err, ringbuf.ErrClosed) {
+					log.ErrorContext(ctx, "received signal in ring buffer reader")
+					return
+				}
+				log.ErrorContext(ctx, "failed to read event", slog.Any("error", err))
+				continue
+			}
+			if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &evt); err != nil {
+				log.ErrorContext(ctx, "failed to serialize event", slog.Any("error", err))
+				continue
+			}
+			tuple, err := bpf.GetTupleFromEvent(&evt)
+			if err != nil {
+				log.ErrorContext(ctx, "failed to convert a tuple from event", slog.Any("error", err))
+				continue
+			}
+			entry, err := ct.LookUp(tuple)
+			if err != nil {
+				if errors.Is(err, conntrack.ErrNoEntry) {
+					log.WarnContext(ctx, "no such entry", slog.Any("tuple", tuple))
+				} else {
+					log.ErrorContext(ctx, "failed to get entries from tuple", slog.Any("error", err))
+					continue
+				}
+			}
+			log.InfoContext(ctx, "invalid source ip", slog.Any("entry", entry), slog.Any("invsip", evt.InvSip))
+		}
+	}()
 
 	<-ctrlC
 	log.Info("got ctrl-c signal")

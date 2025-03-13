@@ -44,7 +44,15 @@ HOST=1
 .PHONY: env
 env:
 	$(SUDO) scripts/env.sh $(HOST)
+	$(SUDO) ip netns exec ext python3 -m http.server 8080
 
 .PHONY: clean-env
 clean-env:
 	$(SUDO) scripts/clean.sh $(HOST)
+
+
+N=1000000
+C=1000
+.PHONY: load
+load:
+	$(SUDO) scripts/run.sh $(HOST) $(N) $(C)
