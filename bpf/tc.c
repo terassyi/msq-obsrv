@@ -96,6 +96,8 @@ int tc_ingress(struct __sk_buff *skb)
 	// {
 	// 	return TC_ACT_OK;
 	// }
+	//
+	// bpf_printk("ingress: attached");
 
 	return TC_ACT_OK;
 }
@@ -183,5 +185,6 @@ int tc_egress(struct __sk_buff *skb)
 
 	// magic = get_opt(skb, iph);
 
+	// bpf_printk("egress: attached");
 	return TC_ACT_OK;
 }

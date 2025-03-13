@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"time"
 
 	"github.com/cilium/ebpf"
@@ -31,14 +32,12 @@ var log *slog.Logger
 
 var (
 	upstream   string
-	addr       string
 	downstream string
 )
 
 func init() {
 	rootCmd.Flags().StringVarP(&upstream, "upstream", "u", "eth0", "the interface to attach TC egress programs")
 	rootCmd.Flags().StringVarP(&downstream, "downstream", "d", "eth.*", "the interface to attach TC ingress programs")
-	rootCmd.Flags().StringVarP(&addr, "addr", "a", "127.0.0.1", "the address masqueraded")
 
 	log = slog.New(slog.NewJSONHandler(os.Stderr, nil))
 
@@ -123,11 +122,16 @@ func run(ctx context.Context) error {
 	}()
 
 	upstreamAddrVar := ebpfObject.UpstreamAddr
-	upstreamAddr := net.ParseIP(addr)
-	if upstreamAddr.To4() == nil {
-		return fmt.Errorf("invalid upstream addr: %v", addr)
-	}
+	// upstreamAddr := net.ParseIP(addr)
+	// if upstreamAddr.To4() == nil {
+	// 	return fmt.Errorf("invalid upstream addr: %v", addr)
+	// }
 
+	// get the IP address of the upstream link
+	upstreamAddr, err := getUpstreamAddr(l)
+	if err != nil {
+		return err
+	}
 	n := ipToU32(upstreamAddr)
 
 	log.InfoContext(ctx, "register the upstream address", slog.Any("address", upstreamAddr), slog.Any("address_u32", n))
@@ -190,4 +194,28 @@ func ipToU32(ip net.IP) uint32 {
 		return binary.LittleEndian.Uint32(ip[12:16])
 	}
 	return binary.LittleEndian.Uint32(ip)
+}
+
+func getUpstreamAddr(l netlink.Link) (net.IP, error) {
+	i, err := net.InterfaceByName(l.Attrs().Name)
+	if err != nil {
+		return nil, err
+	}
+
+	addr, err := i.Addrs()
+	if err != nil {
+		return nil, err
+	}
+	for _, a := range addr {
+		s := strings.Split(a.String(), "/")
+		if len(s) != 2 {
+			continue
+		}
+		ip := net.ParseIP(s[0])
+		if ip.To4() != nil {
+			return ip, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no IP address found for interface %s", l.Attrs().Name)
 }

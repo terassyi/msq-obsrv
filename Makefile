@@ -51,7 +51,7 @@ clean-env:
 	$(SUDO) scripts/clean.sh $(HOST)
 
 
-N=1000000
+N=10000000
 C=1000
 .PHONY: load
 load:
