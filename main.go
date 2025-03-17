@@ -178,7 +178,7 @@ func run(ctx context.Context) error {
 					continue
 				}
 			}
-			log.InfoContext(ctx, "invalid source ip", slog.Any("entry", entry), slog.Any("invsip", uint32ToIP(evt.InvSip)))
+			log.InfoContext(ctx, "invalid source ip", slog.Any("entry", entry), slog.Any("invsip", uint32ToIP(evt.InvSip)), slog.Any("event_saddr", uint32ToIP(evt.T.Saddr)), slog.Any("event_daddr", uint32ToIP(evt.T.Daddr)), slog.Any("event_sport", evt.T.Sport), slog.Any("event_dport", evt.T.Daddr))
 		}
 	}()
 
