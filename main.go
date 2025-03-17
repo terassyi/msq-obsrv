@@ -178,7 +178,7 @@ func run(ctx context.Context) error {
 					continue
 				}
 			}
-			log.InfoContext(ctx, "invalid source ip", slog.Any("entry", entry), slog.Any("invsip", evt.InvSip))
+			log.InfoContext(ctx, "invalid source ip", slog.Any("entry", entry), slog.Any("invsip", uint32ToIP(evt.InvSip)))
 		}
 	}()
 
@@ -194,6 +194,12 @@ func ipToU32(ip net.IP) uint32 {
 		return binary.LittleEndian.Uint32(ip[12:16])
 	}
 	return binary.LittleEndian.Uint32(ip)
+}
+
+func uint32ToIP(ipUint uint32) net.IP {
+	ip := make(net.IP, net.IPv4len)
+	binary.LittleEndian.PutUint32(ip, ipUint)
+	return ip
 }
 
 func getUpstreamAddr(l netlink.Link) (net.IP, error) {
