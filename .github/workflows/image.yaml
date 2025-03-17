@@ -33,7 +33,7 @@ jobs:
       - name: Set Tag
         id: set-tag
         run: echo "RELEASE_TAG=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT # Remove "v" prefix.
-      - name: Build and Push sartd
+      - name: Build and Push msq-obsrv
         uses: docker/build-push-action@v5
         with:
           context: .

@@ -12,6 +12,9 @@ RUN go build -o msq-obsrv .
 
 FROM ghcr.io/cybozu/ubuntu:24.04
 
+RUN apt update && \
+    apt install -y iproute2
+
 COPY --from=builder /work/msq-obsrv /usr/local/bin/msq-obsrv
 
-ENTRYPOINT ["/usr/local/bin/msq-obsrv"]
+ENTRYPOINT ["sleep", "inf"]
